@@ -1,4 +1,4 @@
-from oauth_service_base_class import OAuthService
+from .oauth_service_base_class import OAuthService
 
 class YouTubeMusicOAuth(OAuthService):
     def __init__(self, client_id, client_secret, authorization_base_url, token_url, redirect_uri):

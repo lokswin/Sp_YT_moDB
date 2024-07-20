@@ -6,9 +6,8 @@ import logging
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
 import pymongo
-from oauth_service_child_classes import YouTubeMusicOAuth, SpotifyOAuth, MongoOAuth
-from callback_server import run_server, CallbackHandler
-
+from .oauth_service_child_classes import YouTubeMusicOAuth, SpotifyOAuth, MongoOAuth
+from .callback_server import run_server, CallbackHandler
 class PlaylistManager:
     def __init__(self, config):
         self.config = config
@@ -140,4 +139,3 @@ class PlaylistManager:
                             }
                         }
                     )
-
