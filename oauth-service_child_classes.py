@@ -1,25 +1,22 @@
-import pymongo
+from oauth_service_base_class import OAuthService
 
 class YouTubeMusicOAuth(OAuthService):
-    def __init__(self, client_id, client_secret):
-        super().__init__(client_id, client_secret,
-                         'https://accounts.google.com/o/oauth2/v2/auth',
-                         'https://oauth2.googleapis.com/token',
-                         'youtube')
+    def __init__(self, client_id, client_secret, authorization_base_url, token_url, redirect_uri):
+        super().__init__(client_id, client_secret, authorization_base_url, token_url, 'youtube', redirect_uri)
+    
+    def get_scope(self):
+        return 'https://www.googleapis.com/auth/youtube.force-ssl'
 
 class SpotifyOAuth(OAuthService):
-    def __init__(self, client_id, client_secret):
-        super().__init__(client_id, client_secret,
-                         'https://accounts.spotify.com/authorize',
-                         'https://accounts.spotify.com/api/token',
-                         'spotify')
+    def __init__(self, client_id, client_secret, authorization_base_url, token_url, redirect_uri):
+        super().__init__(client_id, client_secret, authorization_base_url, token_url, 'spotify', redirect_uri)
+    
+    def get_scope(self):
+        return 'playlist-read-private playlist-modify-public playlist-modify-private'
 
-class MongoDBAuth:
-    def __init__(self, username, password):
-        self.username = username
-        self.password = password
-
-    def connect(self):
-        client = pymongo.MongoClient(f"mongodb+srv://{self.username}:{self.password}@cluster0.mongodb.net/test?retryWrites=true&w=majority")
-        db = client.test
-        return db
+class MongoOAuth(OAuthService):
+    def __init__(self, client_id, client_secret, authorization_base_url, token_url, redirect_uri):
+        super().__init__(client_id, client_secret, authorization_base_url, token_url, 'mongo', redirect_uri)
+    
+    def get_scope(self):
+        return 'mongodb'

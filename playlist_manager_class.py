@@ -1,10 +1,13 @@
 import os
 import json
 import re
-from datetime import datetime, timedelta
+import requests
+import logging
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
 import pymongo
+from oauth_service_child_classes import YouTubeMusicOAuth, SpotifyOAuth, MongoOAuth
+from callback_server import run_server, CallbackHandler
 
 class PlaylistManager:
     def __init__(self, config):
@@ -18,61 +21,70 @@ class PlaylistManager:
         self.spotify_client_secret = self.config['spotify_client_secret']
         self.playlist_links_file = self.config['playlist_links_file']
         self.json_temp_folder = self.config['json_temp_folder']
-        self.mongo_username = self.config['mongo_username']
-        self.mongo_password = self.config['mongo_password']
+        self.mongo_client_id = self.config['mongo_client_id']
+        self.mongo_client_secret = self.config['mongo_client_secret']
+        self.spotify_auth_url = self.config['spotify_auth_url']
+        self.spotify_token_url = self.config['spotify_token_url']
+        self.youtube_client_id = self.config['youtube_client_id']
+        self.youtube_client_secret = self.config['youtube_client_secret']
+        self.youtube_auth_url = self.config['youtube_auth_url']
+        self.youtube_token_url = self.config['youtube_token_url']
+        self.mongo_auth_url = self.config['mongo_auth_url']
+        self.mongo_token_url = self.config['mongo_token_url']
 
     def authenticate_spotify(self):
-        client_credentials_manager = SpotifyClientCredentials(
-            client_id=self.spotify_client_id, client_secret=self.spotify_client_secret
-        )
-        self.spotify_session = Spotify(client_credentials_manager=client_credentials_manager)
+        spotify_oauth = SpotifyOAuth(self.spotify_client_id, self.spotify_client_secret, self.spotify_auth_url, self.spotify_token_url, 'http://localhost:8000/callback')
+        self._authenticate_with_server(spotify_oauth)
+
+    def authenticate_mongo(self):
+        mongo_oauth = MongoOAuth(self.mongo_client_id, self.mongo_client_secret, self.mongo_auth_url, self.mongo_token_url, 'http://localhost:8000/callback')
+        self._authenticate_with_server(mongo_oauth)
+        access_token = mongo_oauth.load_tokens().get('access_token')
+        self.db = pymongo.MongoClient(f"mongodb+srv://{access_token}@cluster0.mongodb.net/test?retryWrites=true&w=majority").test
+
+    def _authenticate_with_server(self, oauth_service):
+        run_server()
+        oauth_service.authenticate()
+        authorization_code = CallbackHandler.authorization_code
+        if authorization_code:
+            tokens = oauth_service.get_token(authorization_code)
+            oauth_service.save_tokens(tokens)
+        else:
+            logging.error("Failed to retrieve authorization code.")
 
     def read_playlist_links(self):
         with open(self.playlist_links_file, 'r') as file:
             return [line.strip() for line in file]
 
     def generate_json_from_playlist(self, playlist_link):
-        playlist_id = re.match(r"https://open.spotify.com/playlist/(.*)\?", playlist_link).groups()[0]
-        tracks = self.spotify_session.playlist_tracks(playlist_id)["items"]
-        playlist_name = self.spotify_session.playlist(playlist_id)["name"]
+        spotify_oauth = SpotifyOAuth(self.spotify_client_id, self.spotify_client_secret, self.spotify_auth_url, self.spotify_token_url, 'http://localhost:8000/callback')
+        spotify_oauth.authenticate()
+        access_token = spotify_oauth.load_tokens().get('access_token')
+        self.spotify_session = Spotify(auth=access_token)
+
+        playlist_id = re.findall(r'playlist/(\w+)', playlist_link)[0]
+        playlist = self.spotify_session.playlist(playlist_id)
+        playlist_name = playlist["name"]
+        tracks = [{
+            "name": item["track"]["name"],
+            "artist": item["track"]["artists"][0]["name"]
+        } for item in playlist["tracks"]["items"]]
 
         playlist_data = {
             "playlist_name": playlist_name,
-            "tracks": [
-                {"name": track["track"]["name"], "artist": ", ".join([artist["name"] for artist in track["track"]["artists"]])}
-                for track in tracks
-            ]
+            "tracks": tracks
         }
 
-        os.makedirs(self.json_temp_folder, exist_ok=True)
-        json_file_path = os.path.join(self.json_temp_folder, f"{playlist_name}.json")
+        if not os.path.exists(self.json_temp_folder):
+            os.makedirs(self.json_temp_folder)
+        json_file_path = os.path.join(self.json_temp_folder, f"{playlist_data['playlist_name']}.json")
         with open(json_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(playlist_data, json_file, ensure_ascii=False, indent=4)
 
-    def upload_jsons_to_mongodb(self):
-        client = pymongo.MongoClient(f"mongodb+srv://{self.mongo_username}:{self.mongo_password}@cluster0.mongodb.net/test?retryWrites=true&w=majority")
-        db = client.test
-        collection = db.playlists
-        for json_file in os.listdir(self.json_temp_folder):
-            if json_file.endswith('.json'):
-                with open(os.path.join(self.json_temp_folder, json_file), 'r', encoding='utf-8') as file:
-                    playlist_data = json.load(file)
-                collection.update_one({"playlist_name": playlist_data["playlist_name"]}, {"$set": playlist_data}, upsert=True)
-
-    def download_jsons_from_mongodb(self):
-        client = pymongo.MongoClient(f"mongodb+srv://{self.mongo_username}:{self.mongo_password}@cluster0.mongodb.net/test?retryWrites=true&w=majority")
-        db = client.test
-        collection = db.playlists
-        os.makedirs(self.json_temp_folder, exist_ok=True)
-        for playlist_data in collection.find():
-            json_file_path = os.path.join(self.json_temp_folder, f"{playlist_data['playlist_name']}.json")
-            with open(json_file_path, 'w', encoding='utf-8') as json_file:
-                json.dump(playlist_data, json_file, ensure_ascii=False, indent=4)
-
     def upload_to_youtube_music(self):
-        youtube_music_oauth = YouTubeMusicOAuth(self.config['youtube_client_id'], self.config['youtube_client_secret'])
-        youtube_music_oauth.set_mongo_credentials(self.mongo_username, self.mongo_password)
-        access_token = youtube_music_oauth.get_token()
+        youtube_music_oauth = YouTubeMusicOAuth(self.youtube_client_id, self.youtube_client_secret, self.youtube_auth_url, self.youtube_token_url, 'http://localhost:8000/callback')
+        self._authenticate_with_server(youtube_music_oauth)
+        access_token = youtube_music_oauth.load_tokens().get('access_token')
 
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -85,7 +97,6 @@ class PlaylistManager:
                     playlist_data = json.load(file)
                 playlist_name = playlist_data["playlist_name"]
 
-                # Create YouTube Music playlist (this is a placeholder, replace with actual YouTube Music API call)
                 create_playlist_response = requests.post(
                     "https://www.googleapis.com/youtube/v3/playlists",
                     headers=headers,
@@ -103,7 +114,6 @@ class PlaylistManager:
                 )
                 playlist_id = create_playlist_response.json()["id"]
 
-                # Add tracks to YouTube Music playlist (this is a placeholder, replace with actual YouTube Music API call)
                 for track in playlist_data["tracks"]:
                     search_response = requests.get(
                         "https://www.googleapis.com/youtube/v3/search",
@@ -130,3 +140,4 @@ class PlaylistManager:
                             }
                         }
                     )
+

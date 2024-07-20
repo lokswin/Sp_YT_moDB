@@ -1,17 +1,17 @@
 {
     "spotify_client_id": "your_spotify_client_id",
     "spotify_client_secret": "your_spotify_client_secret",
-    "youtube_client_id": "your_youtube_client_id",
-    "youtube_client_secret": "your_youtube_client_secret",
-    "mongo_client_id": "your_mongo_client_id",
-    "mongo_client_secret": "your_mongo_client_secret",
     "playlist_links_file": "playlist_links.txt",
     "json_temp_folder": "json_temp",
     "debug_mode": true,
     "spotify_auth_url": "https://accounts.spotify.com/authorize",
     "spotify_token_url": "https://accounts.spotify.com/api/token",
-    "youtube_auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+    "youtube_client_id": "your_youtube_client_id",
+    "youtube_client_secret": "your_youtube_client_secret",
+    "youtube_auth_url": "https://accounts.google.com/o/oauth2/auth",
     "youtube_token_url": "https://oauth2.googleapis.com/token",
-    "mongo_auth_url": "https://your-mongo-auth-url",
-    "mongo_token_url": "https://your-mongo-token-url"
+    "mongo_client_id": "your_mongo_client_id",
+    "mongo_client_secret": "your_mongo_client_secret",
+    "mongo_auth_url": "https://cloud.mongodb.com/oauth2/authorize",
+    "mongo_token_url": "https://cloud.mongodb.com/oauth2/token"
 }

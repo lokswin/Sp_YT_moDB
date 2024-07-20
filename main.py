@@ -3,15 +3,20 @@ from gui_class import GUI
 from logger_class import Logger
 from playlist_manager_class import PlaylistManager
 
-# Load configuration
-with open('config.json', 'r') as file:
-    config = json.load(file)
+def main():
+    with open('config.json', 'r') as file:
+        config = json.load(file)
 
-# Initialize Logger
-logger = Logger(debug_mode=config.get('debug_mode', False))
+    logger = Logger(config)
+    playlist_manager = PlaylistManager(config)
 
-# Initialize Playlist Manager
-playlist_manager = PlaylistManager(config)
+    # Authenticate services
+    playlist_manager.authenticate_spotify()
+    playlist_manager.authenticate_mongo()
+    playlist_manager.upload_to_youtube_music()
 
-# Initialize and start GUI
-gui = GUI(playlist_manager, logger)
+    gui = GUI(playlist_manager, logger)
+    gui.run()
+
+if __name__ == "__main__":
+    main()
