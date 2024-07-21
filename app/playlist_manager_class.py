@@ -3,11 +3,12 @@ import json
 import re
 import requests
 import logging
-from spotipy import Spotify
-from spotipy.oauth2 import SpotifyClientCredentials
 import pymongo
-from .oauth_service_child_classes import YouTubeMusicOAuth, SpotifyOAuth, MongoOAuth
-from .callback_server import run_server, CallbackHandler
+from spotipy import Spotify
+from app.callback_server import run_server
+from app.oauth_service_child_classes import YouTubeMusicOAuth, SpotifyOAuth, MongoOAuth
+from spotipy.oauth2 import SpotifyClientCredentials
+
 class PlaylistManager:
     def __init__(self, config):
         self.config = config
@@ -32,14 +33,30 @@ class PlaylistManager:
         self.mongo_token_url = self.config['mongo_token_url']
 
     def authenticate_spotify(self):
-        spotify_oauth = SpotifyOAuth(self.spotify_client_id, self.spotify_client_secret, self.spotify_auth_url, self.spotify_token_url, 'http://localhost:8000/callback')
+        spotify_oauth = SpotifyOAuth(
+            self.spotify_client_id, 
+            self.spotify_client_secret, 
+            self.spotify_auth_url, 
+            self.spotify_token_url, 
+            'Spotify', 
+            'http://localhost:8000/callback'
+        )
         self._authenticate_with_server(spotify_oauth)
 
     def authenticate_mongo(self):
-        mongo_oauth = MongoOAuth(self.mongo_client_id, self.mongo_client_secret, self.mongo_auth_url, self.mongo_token_url, 'http://localhost:8000/callback')
+        mongo_oauth = MongoOAuth(
+            self.mongo_client_id, 
+            self.mongo_client_secret, 
+            self.mongo_auth_url, 
+            self.mongo_token_url, 
+            'MongoDB', 
+            'http://localhost:8000/callback'
+        )
         self._authenticate_with_server(mongo_oauth)
         access_token = mongo_oauth.load_tokens().get('access_token')
-        self.db = pymongo.MongoClient(f"mongodb+srv://{access_token}@cluster0.mongodb.net/test?retryWrites=true&w=majority").test
+        self.db = pymongo.MongoClient(
+            f"mongodb+srv://{access_token}@cluster0.mongodb.net/test?retryWrites=true&w=majority"
+        ).test
 
     def _authenticate_with_server(self, oauth_service):
         run_server()
@@ -56,7 +73,14 @@ class PlaylistManager:
             return [line.strip() for line in file]
 
     def generate_json_from_playlist(self, playlist_link):
-        spotify_oauth = SpotifyOAuth(self.spotify_client_id, self.spotify_client_secret, self.spotify_auth_url, self.spotify_token_url, 'http://localhost:8000/callback')
+        spotify_oauth = SpotifyOAuth(
+            self.spotify_client_id, 
+            self.spotify_client_secret, 
+            self.spotify_auth_url, 
+            self.spotify_token_url, 
+            'Spotify', 
+            'http://localhost:8000/callback'
+        )
         spotify_oauth.authenticate()
         access_token = spotify_oauth.load_tokens().get('access_token')
         self.spotify_session = Spotify(auth=access_token)
@@ -81,7 +105,14 @@ class PlaylistManager:
             json.dump(playlist_data, json_file, ensure_ascii=False, indent=4)
 
     def upload_to_youtube_music(self):
-        youtube_music_oauth = YouTubeMusicOAuth(self.youtube_client_id, self.youtube_client_secret, self.youtube_auth_url, self.youtube_token_url, 'http://localhost:8000/callback')
+        youtube_music_oauth = YouTubeMusicOAuth(
+            self.youtube_client_id, 
+            self.youtube_client_secret, 
+            self.youtube_auth_url, 
+            self.youtube_token_url, 
+            'YouTubeMusic', 
+            'http://localhost:8000/callback'
+        )
         self._authenticate_with_server(youtube_music_oauth)
         access_token = youtube_music_oauth.load_tokens().get('access_token')
 

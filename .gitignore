@@ -1,0 +1,31 @@
+# Python bytecode files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables and secrets
+.env
+*.env
+
+# Config files with sensitive data
+config.json
+
+# Temporary files and directories
+json_temp/
+playlist_links.txt
+
+# Logs
+*.log
+
+# IDE and editor-specific files
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Virtual environment
+venv/
+env/

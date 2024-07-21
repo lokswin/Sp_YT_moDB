@@ -1,8 +1,7 @@
 import webbrowser
 import requests
-from urllib.parse import urlencode, urlparse, parse_qs
+from urllib.parse import urlencode
 import json
-import os
 import logging
 
 class OAuthService:
@@ -26,7 +25,6 @@ class OAuthService:
         return url
 
     def get_scope(self):
-        # Define the scope required by the service
         return ''
 
     def get_token(self, authorization_code):
