@@ -1,8 +1,7 @@
-import webbrowser
-import requests
+# file: app\oauth_service_base_class.py
+import requests, time, webbrowser, threading
 from urllib.parse import urlencode
-import json
-import logging
+from app.callback_server import CallbackHandler, run_server
 
 class OAuthService:
     def __init__(self, client_id, client_secret, authorization_base_url, token_url, service_name, redirect_uri):
@@ -12,72 +11,53 @@ class OAuthService:
         self.token_url = token_url
         self.service_name = service_name
         self.redirect_uri = redirect_uri
+        self.tokens = {}
 
     def get_authorization_url(self):
         params = {
-            'response_type': 'code',
             'client_id': self.client_id,
+            'response_type': 'code',
             'redirect_uri': self.redirect_uri,
-            'scope': self.get_scope(),
-            'access_type': 'offline'
+            'scope': self.get_scope()
         }
         url = f"{self.authorization_base_url}?{urlencode(params)}"
         return url
 
-    def get_scope(self):
-        return ''
-
-    def get_token(self, authorization_code):
-        data = {
-            'code': authorization_code,
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'redirect_uri': self.redirect_uri,
-            'grant_type': 'authorization_code'
-        }
-        response = requests.post(self.token_url, data=data)
-        if response.status_code != 200:
-            logging.error(f"Failed to get token: {response.text}")
-            raise Exception(f"Failed to get token: {response.text}")
-        return response.json()
-
     def authenticate(self):
+        server_thread = threading.Thread(target=run_server)
+        server_thread.daemon = True
+        server_thread.start()
+
         auth_url = self.get_authorization_url()
         webbrowser.open(auth_url)
-        print("Please authorize the application in your browser and paste the authorization code here.")
-        authorization_code = input("Enter the authorization code: ")
+        print("Please authorize the application in your browser.")
+        
+        self.wait_for_authorization_code()
+
+    def wait_for_authorization_code(self):
+        while CallbackHandler.authorization_code is None:
+            time.sleep(1)  # Wait until the authorization code is received
+
+        authorization_code = CallbackHandler.authorization_code
         tokens = self.get_token(authorization_code)
         self.save_tokens(tokens)
 
+    def get_scope(self):
+        raise NotImplementedError("Subclasses should implement this!")
+
+    def get_token(self, authorization_code):
+        data = {
+            'grant_type': 'authorization_code',
+            'code': authorization_code,
+            'redirect_uri': self.redirect_uri,
+            'client_id': self.client_id,
+            'client_secret': self.client_secret
+        }
+        response = requests.post(self.token_url, data=data)
+        return response.json()
+
     def save_tokens(self, tokens):
-        with open(f"{self.service_name}_tokens.json", 'w') as f:
-            json.dump(tokens, f)
-        logging.info(f"Tokens saved for {self.service_name}")
+        self.tokens = tokens
 
     def load_tokens(self):
-        try:
-            with open(f"{self.service_name}_tokens.json", 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logging.error(f"Token file not found for {self.service_name}")
-            return None
-
-    def refresh_tokens(self):
-        tokens = self.load_tokens()
-        if tokens:
-            refresh_token = tokens.get('refresh_token')
-            if refresh_token:
-                data = {
-                    'client_id': self.client_id,
-                    'client_secret': self.client_secret,
-                    'grant_type': 'refresh_token',
-                    'refresh_token': refresh_token
-                }
-                response = requests.post(self.token_url, data=data)
-                if response.status_code != 200:
-                    logging.error(f"Failed to refresh token: {response.text}")
-                    raise Exception(f"Failed to refresh token: {response.text}")
-                new_tokens = response.json()
-                self.save_tokens(new_tokens)
-                return new_tokens
-        return None
+        return self.tokens

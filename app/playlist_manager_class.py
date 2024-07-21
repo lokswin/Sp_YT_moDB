@@ -1,13 +1,13 @@
-import os
+# file: app/playlist_manager_class.py
 import json
+import os
 import re
 import requests
-import logging
 import pymongo
+import logging
 from spotipy import Spotify
-from app.callback_server import run_server
 from app.oauth_service_child_classes import YouTubeMusicOAuth, SpotifyOAuth, MongoOAuth
-from spotipy.oauth2 import SpotifyClientCredentials
+from app.callback_server import CallbackHandler
 
 class PlaylistManager:
     def __init__(self, config):
@@ -15,6 +15,11 @@ class PlaylistManager:
         self.spotify_session = None
         self.db = None
         self.load_env()
+        self.tokens = {
+            'spotify': None,
+            'youtube_music': None,
+            'mongo': None
+        }
 
     def load_env(self):
         self.spotify_client_id = self.config['spotify_client_id']
@@ -25,6 +30,7 @@ class PlaylistManager:
         self.mongo_client_secret = self.config['mongo_client_secret']
         self.spotify_auth_url = self.config['spotify_auth_url']
         self.spotify_token_url = self.config['spotify_token_url']
+        self.spotify_redirect_url = self.config['spotify_redirect_url']
         self.youtube_client_id = self.config['youtube_client_id']
         self.youtube_client_secret = self.config['youtube_client_secret']
         self.youtube_auth_url = self.config['youtube_auth_url']
@@ -32,34 +38,41 @@ class PlaylistManager:
         self.mongo_auth_url = self.config['mongo_auth_url']
         self.mongo_token_url = self.config['mongo_token_url']
 
-    def authenticate_spotify(self):
-        spotify_oauth = SpotifyOAuth(
-            self.spotify_client_id, 
-            self.spotify_client_secret, 
-            self.spotify_auth_url, 
-            self.spotify_token_url, 
-            'Spotify', 
-            'http://localhost:8000/callback'
-        )
-        self._authenticate_with_server(spotify_oauth)
+    def authenticate(self, service_name):
+        if service_name == 'spotify':
+            oauth_service = SpotifyOAuth(
+                client_id=self.spotify_client_id,
+                client_secret=self.spotify_client_secret,
+                authorization_base_url=self.spotify_auth_url,
+                token_url=self.spotify_token_url,
+                service_name='spotify',
+                redirect_uri=self.spotify_redirect_url
+            )
+        elif service_name == 'youtube_music':
+            oauth_service = YouTubeMusicOAuth(
+                client_id=self.youtube_client_id,
+                client_secret=self.youtube_client_secret,
+                authorization_base_url=self.youtube_auth_url,
+                token_url=self.youtube_token_url,
+                service_name='youtube_music',
+                redirect_uri=self.spotify_redirect_url
+            )
+        elif service_name == 'mongo':
+            oauth_service = MongoOAuth(
+                client_id=self.mongo_client_id,
+                client_secret=self.mongo_client_secret,
+                authorization_base_url=self.mongo_auth_url,
+                token_url=self.mongo_token_url,
+                service_name='mongo',
+                redirect_uri=self.spotify_redirect_url
+            )
+        else:
+            raise ValueError(f"Unknown service: {service_name}")
 
-    def authenticate_mongo(self):
-        mongo_oauth = MongoOAuth(
-            self.mongo_client_id, 
-            self.mongo_client_secret, 
-            self.mongo_auth_url, 
-            self.mongo_token_url, 
-            'MongoDB', 
-            'http://localhost:8000/callback'
-        )
-        self._authenticate_with_server(mongo_oauth)
-        access_token = mongo_oauth.load_tokens().get('access_token')
-        self.db = pymongo.MongoClient(
-            f"mongodb+srv://{access_token}@cluster0.mongodb.net/test?retryWrites=true&w=majority"
-        ).test
+        self._authenticate_with_server(oauth_service)
+        self.tokens[service_name] = oauth_service.load_tokens()
 
     def _authenticate_with_server(self, oauth_service):
-        run_server()
         oauth_service.authenticate()
         authorization_code = CallbackHandler.authorization_code
         if authorization_code:
@@ -74,12 +87,12 @@ class PlaylistManager:
 
     def generate_json_from_playlist(self, playlist_link):
         spotify_oauth = SpotifyOAuth(
-            self.spotify_client_id, 
-            self.spotify_client_secret, 
-            self.spotify_auth_url, 
-            self.spotify_token_url, 
-            'Spotify', 
-            'http://localhost:8000/callback'
+            client_id=self.spotify_client_id,
+            client_secret=self.spotify_client_secret,
+            authorization_base_url=self.spotify_auth_url,
+            token_url=self.spotify_token_url,
+            service_name='spotify',
+            redirect_uri=self.spotify_redirect_url
         )
         spotify_oauth.authenticate()
         access_token = spotify_oauth.load_tokens().get('access_token')
@@ -106,12 +119,12 @@ class PlaylistManager:
 
     def upload_to_youtube_music(self):
         youtube_music_oauth = YouTubeMusicOAuth(
-            self.youtube_client_id, 
-            self.youtube_client_secret, 
-            self.youtube_auth_url, 
-            self.youtube_token_url, 
-            'YouTubeMusic', 
-            'http://localhost:8000/callback'
+            client_id=self.youtube_client_id,
+            client_secret=self.youtube_client_secret,
+            authorization_base_url=self.youtube_auth_url,
+            token_url=self.youtube_token_url,
+            service_name='youtube_music',
+            redirect_uri=self.spotify_redirect_url
         )
         self._authenticate_with_server(youtube_music_oauth)
         access_token = youtube_music_oauth.load_tokens().get('access_token')
@@ -170,3 +183,10 @@ class PlaylistManager:
                             }
                         }
                     )
+
+    def is_authorized(self, service_name):
+        return self.tokens.get(service_name) is not None
+
+    def logout(self, service_name):
+        self.tokens[service_name] = None
+        # Implement specific logout handling if needed

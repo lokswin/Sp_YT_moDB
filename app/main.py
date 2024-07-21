@@ -1,6 +1,10 @@
-import json, os
+# file: app/main.py
+import json
+import os
 from app.logger_class import Logger
 from app.playlist_manager_class import PlaylistManager
+from app.gui_class import AppGUI
+import tkinter as tk
 
 def load_config():
     """
@@ -23,14 +27,14 @@ def main():
     # Load configuration
     config = load_config()
     logger = Logger(debug_mode=config.get("debug_mode", False))
+    
     # Initialize Playlist Manager
     playlist_manager = PlaylistManager(config)
 
-    # Example usage
-    playlist_links = playlist_manager.read_playlist_links()
-    for link in playlist_links:
-        playlist_manager.generate_json_from_playlist(link)
-    playlist_manager.upload_to_youtube_music()
+    # Start the GUI
+    root = tk.Tk()
+    app = AppGUI(root, playlist_manager)
+    root.mainloop()
 
 if __name__ == "__main__":
     main()

@@ -1,12 +1,13 @@
+# file: app\callback_server.py
 import http.server
 import socketserver
+import threading
 from urllib.parse import urlparse, parse_qs
 
 class CallbackHandler(http.server.BaseHTTPRequestHandler):
     authorization_code = None
 
     def do_GET(self):
-        # Handle the callback request
         if self.path.startswith("/callback"):
             query = urlparse(self.path).query
             params = parse_qs(query)
@@ -17,6 +18,7 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "text/html")
                 self.end_headers()
                 self.wfile.write(b"Authorization code received. You may close this window.")
+                threading.Thread(target=self.server.shutdown).start()  # Stop the server after handling the request
             else:
                 self.send_error(400, "Authorization code not found")
         else:
