@@ -29,11 +29,11 @@ def main():
     logger = Logger(debug_mode=config.get("debug_mode", False))
     
     # Initialize Playlist Manager
-    playlist_manager = PlaylistManager(config)
+    playlist_manager = PlaylistManager(config, logger)
 
     # Start the GUI
     root = tk.Tk()
-    app = AppGUI(root, playlist_manager)
+    app = AppGUI(root, playlist_manager, logger)
     root.mainloop()
 
 if __name__ == "__main__":

@@ -1,20 +1,17 @@
 # file: app/logger_class.py
 import logging
+import tkinter as tk
 
 class Logger:
     def __init__(self, debug_mode=False):
         self.logger = logging.getLogger("MyLogger")
+        self.logger.setLevel(logging.DEBUG if debug_mode else logging.INFO)
         handler = logging.StreamHandler()
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
-        self.set_debug_mode(debug_mode)
         self.debug_mode = debug_mode
         self.gui_log_widget = None
-
-    def set_debug_mode(self, debug_mode):
-        self.debug_mode = debug_mode
-        self.logger.setLevel(logging.DEBUG if debug_mode else logging.INFO)
 
     def set_gui_log_widget(self, log_widget):
         self.gui_log_widget = log_widget

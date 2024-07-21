@@ -10,8 +10,9 @@ from app.oauth_service_child_classes import YouTubeMusicOAuth, SpotifyOAuth, Mon
 from app.callback_server import CallbackHandler
 
 class PlaylistManager:
-    def __init__(self, config):
+    def __init__(self, config, logger):
         self.config = config
+        self.logger = logger
         self.spotify_session = None
         self.db = None
         self.load_env()
@@ -39,6 +40,7 @@ class PlaylistManager:
         self.mongo_token_url = self.config['mongo_token_url']
 
     def authenticate(self, service_name):
+        self.logger.info(f"Authenticating {service_name.capitalize()}...")
         if service_name == 'spotify':
             oauth_service = SpotifyOAuth(
                 client_id=self.spotify_client_id,
@@ -64,28 +66,31 @@ class PlaylistManager:
                 authorization_base_url=self.mongo_auth_url,
                 token_url=self.mongo_token_url,
                 service_name='mongo',
-                redirect_uri=self.spotify_redirect_url
+                redirect_uri=self.spotify_redirect_url  # Assuming the same redirect URL for Mongo
             )
         else:
-            raise ValueError(f"Unknown service: {service_name}")
+            self.logger.error(f"Unknown service: {service_name}")
+            return
+        
+        self._authenticate_with_server(oauth_service, service_name)
 
-        self._authenticate_with_server(oauth_service)
-        self.tokens[service_name] = oauth_service.load_tokens()
-
-    def _authenticate_with_server(self, oauth_service):
+    def _authenticate_with_server(self, oauth_service, service_name):
         oauth_service.authenticate()
         authorization_code = CallbackHandler.authorization_code
         if authorization_code:
             tokens = oauth_service.get_token(authorization_code)
             oauth_service.save_tokens(tokens)
+            self.tokens[service_name] = tokens
+            self.logger.info(f"{service_name.capitalize()} authentication successful.")
         else:
-            logging.error("Failed to retrieve authorization code.")
+            self.logger.error(f"Failed to retrieve authorization code for {service_name}.")
 
     def read_playlist_links(self):
         with open(self.playlist_links_file, 'r') as file:
             return [line.strip() for line in file]
 
     def generate_json_from_playlist(self, playlist_link):
+        self.logger.info(f"Generating JSON from playlist: {playlist_link}")
         spotify_oauth = SpotifyOAuth(
             client_id=self.spotify_client_id,
             client_secret=self.spotify_client_secret,
@@ -116,8 +121,10 @@ class PlaylistManager:
         json_file_path = os.path.join(self.json_temp_folder, f"{playlist_data['playlist_name']}.json")
         with open(json_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(playlist_data, json_file, ensure_ascii=False, indent=4)
+        self.logger.info(f"JSON generated for playlist: {playlist_name}")
 
     def upload_to_youtube_music(self):
+        self.logger.info("Uploading to YouTube Music...")
         youtube_music_oauth = YouTubeMusicOAuth(
             client_id=self.youtube_client_id,
             client_secret=self.youtube_client_secret,
@@ -126,7 +133,7 @@ class PlaylistManager:
             service_name='youtube_music',
             redirect_uri=self.spotify_redirect_url
         )
-        self._authenticate_with_server(youtube_music_oauth)
+        self._authenticate_with_server(youtube_music_oauth, 'youtube_music')
         access_token = youtube_music_oauth.load_tokens().get('access_token')
 
         headers = {
@@ -183,10 +190,22 @@ class PlaylistManager:
                             }
                         }
                     )
+        self.logger.info("Upload to YouTube Music completed.")
 
     def is_authorized(self, service_name):
         return self.tokens.get(service_name) is not None
 
     def logout(self, service_name):
+        self.logger.info(f"Logging out from {service_name.capitalize()}...")
         self.tokens[service_name] = None
-        # Implement specific logout handling if needed
+        self.save_tokens()
+        self.logger.info(f"Logged out from {service_name.capitalize()}.")
+
+    def save_tokens(self):
+        with open('tokens.json', 'w') as file:
+            json.dump(self.tokens, file)
+
+    def load_tokens(self):
+        if os.path.exists('tokens.json'):
+            with open('tokens.json', 'r') as file:
+                self.tokens = json.load(file)
